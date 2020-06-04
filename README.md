@@ -28,3 +28,13 @@ solve:主线程while(1)，注意查错误代码10061
 3.将WAIT_TIME改为WSA_INFINITE，无果，这个会造成长时间挂起，不易过长
 
 4.在各阶段输出报错信息，发现 WSAWaitForMultipleEvents()函数可以正常进行前几次的事件选择，无法识别到close事件，仔细想了下应该是识别服务端事件的时候造成TIMEOUT，仔细检查了下 WSAWaitForMultipleEvents（），发现参数设置有问题，改了下参数，这一块就过了
+
++ 除了Server的线程,Client同样需要接受消息的线程，同样需要考虑构建好线程函数
+
++ **send\recv 默认是阻塞模式**
+
+  solve : ftcl() setsockopt(),ioctlsocket()三者都可以实现非阻塞，这里我选择了setsockopt()设置函数超时返回值实现非阻塞。
+
++ 一个客户端发送消息，服务端接受并向其他客户端转发即可
+
+至此，超级简易版的聊天室程序实现了，接下来是qt的图形化界面部分

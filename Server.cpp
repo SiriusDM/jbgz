@@ -1,7 +1,7 @@
 #include <iostream>
 #include <winsock2.h>
 #include <stdio.h>
-
+#include <cstring>
 
 
 using namespace std;
@@ -10,13 +10,14 @@ using namespace std;
 
 const int WAIT_TIME = 10;
 const int MAX_CLIENT_NUM = 10;
-const int BUFFER_SIZE = 1024；
+const int BUFFER_SIZE = 1024;
+int RCV_WAIT_TIMEOUT = 10;
+int SND_WAIT_TIMEOUT = 10;
 
 
 SOCKADDR_IN clAddr[MAX_CLIENT_NUM];
 SOCKET clSock[MAX_CLIENT_NUM];
 WSAEVENT clEvent[MAX_CLIENT_NUM];  //0->Server
-char buf[BUFFER_SIZE] = { 0 };
 int now_link_num=0;
 
 
@@ -54,7 +55,12 @@ int main(int argc,char* argv[]) {
     clSock[0] = ServSock;
     clEvent[0] = servEvent;
     CloseHandle(CreateThread(NULL,0,servEventThread,(LPVOID)&ServSock,0,0));
-	while (1);
+	while (1) {
+		char buf[BUFFER_SIZE] = { 0 };
+		cin.getline(buf, sizeof(buf));
+		for (int j = 1; j <= now_link_num; j++)
+			send(clSock[j],buf,sizeof(buf),0);
+	}
 /*    //收发数据测试
     SOCKET sClient;
     sockaddr_in cAddr;
@@ -111,14 +117,21 @@ DWORD  WINAPI servEventThread(LPVOID lpParameter) {//事件选择线程
                     }
                   int AddrLen = sizeof(SOCKADDR);
                   SOCKET nSock = accept(servSock,(SOCKADDR*)&clAddr[now_link_num+1],&AddrLen);
-                  if (nSock == INVALID_SOCKET) 
-                     continue;
+                  if (nSock == INVALID_SOCKET) continue;
+				  //设置超时机制
+				  setsockopt(nSock, SOL_SOCKET, SO_SNDTIMEO, (char*)&SND_WAIT_TIMEOUT, sizeof(SND_WAIT_TIMEOUT));
+				  setsockopt(nSock, SOL_SOCKET, SO_RCVTIMEO, (char*)&RCV_WAIT_TIMEOUT, sizeof(RCV_WAIT_TIMEOUT));
                   clSock[now_link_num + 1] = nSock;
                   WSAEVENT nEvent = WSACreateEvent(); //创建新的事件对象
                   WSAEventSelect(clSock[now_link_num+1],nEvent,FD_CLOSE|FD_READ|FD_WRITE);// 监听事件种类
 				  clEvent[now_link_num + 1] = nEvent;
                   now_link_num++;//连接数+1
-                  printf("Welcome User %d Enter The Chatting Room !\n",now_link_num	);
+                  printf("User %d Enter the Chatting Room !\n",now_link_num	);
+				  char buf[BUFFER_SIZE] = "[Server]:Welcome User(IP:";
+				  strcat(buf,inet_ntoa(clAddr[now_link_num].sin_addr));
+				  strcat(buf,") Enter the Chatting Room !");
+			      for (int j = 1; j <= now_link_num; j++)
+					send(clSock[j],buf,sizeof(buf),0);
                 } 
 				else if (netEvent.lNetworkEvents & FD_CLOSE) {//close
 				//	cout << '1' << endl;
@@ -132,10 +145,25 @@ DWORD  WINAPI servEventThread(LPVOID lpParameter) {//事件选择线程
 						clEvent[j] = clEvent[j + 1];
 						clAddr[j] = clAddr[j + 1];
 					}
+					char buf[BUFFER_SIZE] = "[Server]:User(IP:";
+					strcat(buf, inet_ntoa(clAddr[now_link_num].sin_addr));
+					strcat(buf, ") Exit the Chatting Room !");
+					for (int j = 1; j < now_link_num; j++)
+						send(clSock[j], buf, sizeof(buf), 0);
+					
 					now_link_num--;
 				}
-				else if (netEvent.lNetworkEvents & FD_READ) {//read 接收消息
-				
+				else if (netEvent.lNetworkEvents & FD_READ) {//read 接收消息 并向其他client转发
+					char buf[BUFFER_SIZE] = { 0 };
+					char buf2[BUFFER_SIZE] = { 0 };
+					int nrecv = recv(clSock[i],buf,sizeof(buf),0);
+					if (nrecv > 0) {
+						sprintf(buf2,"[User%d]:%s",i,buf);
+						cout << buf2 << endl;
+						for (int j = 1; j <= now_link_num; j++) {
+							send(clSock[j],buf2,sizeof(buf2),0);
+						}
+					}
 				}
 			//	cout << '2' << endl;
             }

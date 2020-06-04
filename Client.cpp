@@ -1,8 +1,15 @@
 #include <winsock2.h>
 #include <iostream>
 #include <stdio.h>
+#include <cstring>
+
 using namespace std;
-#pragma comment (lib, "ws2_32.lib")
+
+#pragma comment (lib, "ws2_32.lib");
+
+
+const int BUFFER_SIZE=1024;
+DWORD WINAPI recvMsgThread(LPVOID lpParameter);
 
 int main(int argc, char *argv[]) {
     WORD wVersionRequested = MAKEWORD(2,2);
@@ -22,10 +29,16 @@ int main(int argc, char *argv[]) {
         printf("Connect Error !"); 
         return 0;
     }
+
+	CloseHandle(CreateThread(NULL,0,recvMsgThread,(LPVOID)&sClient,0,0)); //创建消息处理线程
+
 	while (1) {
-		char data[100] = { 0 };
-		cin.getline(data,sizeof(data));
-		send(sClient,data,sizeof(data),0);
+		char buf[BUFFER_SIZE] = { 0 };
+		cin.getline(buf,sizeof(buf));
+		if (strcmp(buf, "exit") == 0) {
+			break;
+		}
+		send(sClient,buf,sizeof(buf),0);
 	}
 //    printf("Connect Success!\n");
 /*    char  cData[255];
@@ -41,7 +54,23 @@ int main(int argc, char *argv[]) {
         }
         cin>>cData;
     }*/
- 
+	closesocket(sClient);
     WSACleanup();
     return 0;
+}
+DWORD WINAPI recvMsgThread(LPVOID lpParameter) {
+	SOCKET clSock = *(SOCKET*)lpParameter;
+
+	while (1) {
+		char buf[BUFFER_SIZE] = { 0 };
+		int nrecv = recv(clSock, buf, sizeof(buf), 0);
+		if (nrecv > 0) {
+			cout << buf << endl;
+		}
+		else if (nrecv < 0){
+			cout << "Fail to Connect Server !"<<endl;
+			break;
+		}
+	}
+	return 0;
 }
